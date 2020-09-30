@@ -2,11 +2,8 @@ import random
 import math
 import copy
 import numpy as np
-from Hyperparameters import parameters
-
-np.random.seed(parameters['seedNumber'])
-
 from keras.layers import Dense, Dropout, LeakyReLU, Activation, BatchNormalization
+from Hyperparameters import parameters
 
 # Constant seed number 
 random.seed(parameters['seedNumber'])
@@ -64,42 +61,15 @@ class FullyConnectedLayer:
 
         return output
 
-    def expandFullyBlock(self, prevBlockParams, selectedActFunct, _input):
-        
-        if 'Fully' in prevBlockParams:
-            prevBlockParams = prevBlockParams['Fully']
-            unitCount = min(prevBlockParams['unitCount'] * 2, max(self._parameters['unitCount']))
-            dropoutRate = max(self._parameters['dropoutRate'])
-            activation = prevBlockParams['activation']
-        else:
-            unitCount = min(self._parameters['unitCount'])
-            dropoutRate = min(self._parameters['dropoutRate'])
-            activation = selectedActFunct
+    def expandFullyBlock(self, selectedActFunct, _input):
+        unitCount = random.choice(self._parameters['unitCount'])
+        dropoutRate = random.choice(self._parameters['dropoutRate'])
+        activation = selectedActFunct
 
         blockParams = {"Fully":{'unitCount':unitCount, 'dropoutRate':dropoutRate, 'activation':activation}}
         output = self.addManuelFullyConnectedLayer(_input = _input, **blockParams['Fully'])
 
         return blockParams, output
-
-    def controlParameters(self, prevBlockParams, newBlockParams, blockNo, fullyHyperParams, selectedActFunc):
-
-        minUnitCount = min(fullyHyperParams['unitCount'])
-        maxUnitCount = max(fullyHyperParams['unitCount'])
-        selectedUnitCount = newBlockParams['unitCount']
-
-        selectedDropoutRate = newBlockParams['dropoutRate']
-        
-        if ('Fully' in prevBlockParams) and (selectedUnitCount < prevBlockParams['Fully']['unitCount']):
-            prevBlockParams = prevBlockParams['Fully']
-            newBlockParams['unitCount'] = min(maxUnitCount, prevBlockParams['unitCount'] * 2)
-
-        if 'Fully' in prevBlockParams:
-            prevBlockParams = prevBlockParams['Fully']
-            if prevBlockParams['unitCount'] <= selectedUnitCount:
-                newBlockParams['dropoutRate'] = max(prevBlockParams['dropoutRate'], selectedDropoutRate)
-        
-        newBlockParams['activation'] = selectedActFunc
-        return newBlockParams
 
     def calculateNumberOfParameter(self, inputUnitCount, outputUnitCount):
         return (inputUnitCount + 1) * outputUnitCount 

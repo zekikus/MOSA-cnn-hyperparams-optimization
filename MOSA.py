@@ -12,9 +12,9 @@ from Hyperparameters import parameters
 # Constant seed number 
 random.seed(parameters['seedNumber'])
 
-class SA:
+class MOSA:
 
-    datasetName = "MNIST"
+    datasetName = "CIFAR"
     # Variables
     s = None # Current Solution
     s_prime = None # s': The solution created after the random move
@@ -22,22 +22,28 @@ class SA:
     modelNo = 0 # Model No
     archive = [] # Potentially Pareto Optimal List
     allSolutions = []
+    results = [] # Results Pickle
     
-    filePath = "/content/gdrive/My Drive/Colab Notebooks/MOSA_VGG_Keras/"
+    filePath = "Results/"
 
-    burnin_DeltaF = {"FMNIST": 0.01693, "BALANCED":0.03672, 'LETTERS':0.06544, 'MNIST':	0.08664}
-    
-    nbr_total_iter = 200 # Solution Budget
-    nbr_outer_iter = 10 # 20 değeri için de test edilecek
-    nbr_inner_iter = nbr_total_iter / nbr_outer_iter
+    burnin_DeltaF = {"FMNIST": 0.01693, "BALANCED":0.03672, 'LETTERS':0.06544, 'MNIST':	0.08664, 'CIFAR': 0.09377}
     
     initAccProb = 0.5
-    cr = 0.99 # Cooling Rate
+    cr = 0.85 # Cooling Rate
+    NEW_BLOCK_PROB = 0.0625
 
-    T_init = -burnin_DeltaF[datasetName] / math.log(initAccProb)
+    T_init = 0.577078016
+    T_final = 0.12 # Final temperature deÄŸil iterasyon sayÄ±sÄ± sonlandÄ±rma kriteri olacak.
+
+    nbr_total_iter = 500 #Solution Budget
+    nbr_outer_iter = int(math.log(T_final / T_init) / math.log(cr))
+    nbr_inner_iter = int(nbr_total_iter / nbr_outer_iter)
+
+    print(nbr_outer_iter)
+    print(nbr_inner_iter)
 
     T_current = T_init
-    T_final = 0 # Final temperature değil iterasyon sayısı sonlandırma kriteri olacak.
+    
 
     def rndProb(self):
         return random.random()
@@ -58,11 +64,13 @@ class SA:
                                "batch_size": batch_size, "learning_rate": learning_rate}
         
         self.modelNo = self.modelNo + 1
-        self.s = cnnModelObj.CNNModel()
+        self.s = cnnModelObj.CNNModel(self.NEW_BLOCK_PROB)
         self.s.buildInitSolution()
         self.s.trainModel(**self.initParameters, modelNo=self.modelNo)
         self.s_best = self.s
         self.archive.append(self.s)
+
+        self.results.append({'tr_acc': self.s.trainAccuracy, 'val_acc': self.s.validationAccuracy, 'flops': self.s.flops, 'totalParameter': self.s.parameterCount, 'time': self.s.trainTime, 'status':True})
         
         # Log
         self.writeFile("Initial Solution Created...\n")
@@ -77,7 +85,6 @@ class SA:
     def writeFile(self, text, _filePath="models.txt"):
         f = open(self.filePath + _filePath, "a")
         f.write(text)
-        print(text)
     
     def isSolutionDominateArchive(self, S, archive):
          for a in self.archive:
@@ -132,15 +139,15 @@ class SA:
     # Is S weakly dominate S'
     def isDominate(self, S, S_prime):
         if S.objectiveValue <= S_prime.objectiveValue:
-            if S.parameterCount <= S_prime.parameterCount:
-                if S.objectiveValue < S_prime.objectiveValue or S.parameterCount < S_prime.parameterCount:
+            if S.flops <= S_prime.flops:
+                if S.objectiveValue < S_prime.objectiveValue or S.flops < S_prime.flops:
                     return True
         
         return False
     
     def printArchive(self, archive):
         for a in archive:
-            print("Model:" + str(a.objectiveValue) + "-" + str(a.parameterCount) + "-" + str(a.dominationCount))
+            print("Model:" + str(a.objectiveValue) + "-" + str(a.flops) + "-" + str(a.dominationCount))
         print("*" * 50)
     
     def millions(self, x, pos):
@@ -149,27 +156,9 @@ class SA:
             return '%1.1fM' % (x * 1e-6)
         else:
             return '%1.1fK' % (x * 1e-5)
-
-    def savePlot(self, archive):
-        #colors = ['r' if a in self.archive else 'b' for a in archive ]
-        x = [a.parameterCount for a in archive]
-        y = [a.objectiveValue for a in archive]
-        
-        x_ = [a.parameterCount for a in self.archive]
-        y_ = [a.objectiveValue for a in self.archive]
-        
-        formatter = FuncFormatter(self.millions)
-        
-        fig, ax = plt.subplots(1,1)
-        ax.xaxis.set_major_formatter(formatter)
-        plt.xlabel("#Parameter")
-        plt.ylabel("Error")
-        plt.plot(x, y, 'o', color='b')
-        plt.plot(x_, y_, 'o', color='r')
-        plt.savefig("plot.pdf", bbox_inches='tight')
         
     def saveList(self, _list, name):
-        pickle_out = open(str(name) + ".pickle","wb")
+        pickle_out = open(f"Results/{name}.pickle","wb")
         pickle.dump(_list, pickle_out)
         pickle_out.close()
 
@@ -179,7 +168,7 @@ class SA:
         outer_counter = 0
         archiveList = []
 
-        while outer_counter < self.nbr_outer_iter:
+        while outer_counter < self.nbr_outer_iter or self.modelNo < self.nbr_total_iter:
             
             # Outer Loop Info
             self.writeFile(f"{'#' * 10} Outer Iteration: {outer_counter} {'#' * 10}\n")
@@ -195,15 +184,20 @@ class SA:
 
                 # Apply Local Move
                 self.modelNo = self.modelNo + 1
-                self.s_prime = cnnModelObj.CNNModel()
+                print(f"MODEL NO: {self.modelNo}")
+
+                if self.modelNo > self.nbr_total_iter:
+                    break
+
+                if self.modelNo % 50 == 0:
+                    self.NEW_BLOCK_PROB = self.NEW_BLOCK_PROB * 1.4
+
+                self.s_prime = cnnModelObj.CNNModel(self.NEW_BLOCK_PROB)
                 self.s_prime.buildCNN(copy.deepcopy(self.s.topologyDict))
                 self.s_prime.trainModel(**self.initParameters, modelNo=self.modelNo)
                 
-                ## ÖNEMİ YOK SİLİNECEK
-                self.allSolutions.append(self.s_prime)
-                
-                print("S - " + str(self.s.objectiveValue) + "-" + str(self.s.parameterCount))
-                print("S_prime - " + str(self.s_prime.objectiveValue) + "-" + str(self.s_prime.parameterCount))
+                print("S - " + str(self.s.objectiveValue) + "-" + str(self.s.flops))
+                print("S_prime - " + str(self.s_prime.objectiveValue) + "-" + str(self.s_prime.flops))
                 print('S dominate S_prime:', self.isDominate(self.s, self.s_prime))
                 print("*"*50)
 
@@ -265,27 +259,31 @@ class SA:
                      # New Solution Accept Info
                     self.writeFile(f"New Solution Accepted... - Objective: {self.s.objectiveValue} \n")
                     # Put Accepted Solution in Archive List
-                    archiveList.append((self.s, self.s.objectiveValue)) 
+                    archiveList.append((self.s, self.s.objectiveValue))
+                
+                self.results.append({'tr_acc': self.s_prime.trainAccuracy, 'val_acc': self.s_prime.validationAccuracy, 'flops': self.s_prime.flops, 'totalParameter': self.s_prime.parameterCount, 'time': self.s_prime.trainTime, 'status':acceptModel})
                 
                 self.printArchive(self.archive)
                 # Increase Inner Counter
                 inner_counter = inner_counter + 1
 
-            self.T_current = self.T_current * self.cr
-            
-            # Increase Outer Counter
-            outer_counter = outer_counter + 1
+            if outer_counter < self.nbr_outer_iter: 
+                self.T_current = self.T_current * self.cr
+                
+                # Increase Outer Counter
+                outer_counter = outer_counter + 1
 
-        self.saveList(self.archive, "archive")
-        self.saveList(self.allSolutions, "allSolutions")
-        self.savePlot(self.allSolutions)
+        try:
+            self.saveList(self.results, "mosa_sols")
+        except Exception as e:
+            print(f"Pickle Write Error... {e}")
 
         for index, solution in enumerate(self.archive):
             self.writeFile(str(solution.topologyDict) + "\n", _filePath="archive.txt")
             self.writeFile(f"Objective: {solution.objectiveValue} \n", _filePath="archive.txt")
-            self.writeFile(f"#Parameter: {solution.parameterCount} \n", _filePath="archive.txt")
+            self.writeFile(f"Flops: {solution.flops} \n", _filePath="archive.txt")
             self.writeFile(f"{'*' * 50} \n", _filePath="archive.txt")
             # serialize model to JSON - kerasModel Silindi
             model_json = str(solution.modelJSON)
-            with open(f"model_{index}.json", "w") as json_file:
+            with open(f"Results/model_{index}.json", "w") as json_file:
                 json_file.write(model_json)

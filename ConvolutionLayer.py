@@ -3,12 +3,9 @@ import math
 import copy
 import numpy as np
 import PoolingLayer as poolObject
-from Hyperparameters import parameters
-
-np.random.seed(parameters['seedNumber'])
-
 from keras import regularizers
 from keras.layers import Conv2D, LeakyReLU, Activation, BatchNormalization, Dropout
+from Hyperparameters import parameters
 
 # Constant seed number 
 random.seed(parameters['seedNumber'])
@@ -37,10 +34,6 @@ class ConvolutionLayer:
 
         # Select Hyper-parameter value round up or down
         valueRound = random.choice(['up', 'down'])
-        if rndParameterName == 'kernelSize':
-            valueRound = 'down'
-        elif rndParameterName == 'kernelCount':
-            valueRound = 'up'    
        
         # Select new hyper-parameter value for selected hyper-parameter name
         if valueRound == 'up':
@@ -88,21 +81,15 @@ class ConvolutionLayer:
         output = Dropout(rate=dropoutRate)(_input)
         return output
 
-    def addRandomStriveConvLayer(self, initParams, prevBlock, blockNo, _input):
-        params = self.applyLocalMoveStriveConv(initParams, prevBlock, blockNo, initParams['Conv']['activation'], _input)
+    def addRandomStriveConvLayer(self, initParams, blockNo, _input):
+        params = self.applyLocalMoveStriveConv(initParams, blockNo, initParams['Conv']['activation'], _input)
         output = self.addManuelStriveConLayer(_input=_input, **params)
         return params, output
 
-    def applyLocalMoveStriveConv(self, initParams, prevBlock, blockNo, selectedActFunc, _input):
-        dropoutRate = 0.2
-        if blockNo != 1:
-            prevBlock = prevBlock['Strive']
-            oldVal = prevBlock['dropoutRate']
-            params = np.array(self._parameters['dropoutRate']) 
-            dropoutRate = params[np.where(params > oldVal)][0] if len(params[np.where(params > oldVal)]) != 0 else oldVal
-
-        # Repair Strive Layer Parameters
+    def applyLocalMoveStriveConv(self, initParams, blockNo, selectedActFunc, _input):
+        dropoutRate = random.choice(parameters['pool']['dropoutRate'])
         kernelSize = random.choice(parameters['pool']['kernelSize'])
+        # Repair Strive Layer Parameters
         outputSize = self.calculateOutputSize(int(_input.shape[1]), kernelSize, 2)
         if outputSize < 1:
             kernelSize, _ = self.repairLayer(copy.deepcopy(parameters['pool']), kernelSize, 2, int(_input.shape[1]))
@@ -111,13 +98,13 @@ class ConvolutionLayer:
                  "activation": selectedActFunc, "dropoutRate": dropoutRate}
         
 
-    def expandConvBlock(self, prevBlockParams, convLayerCount, striveOrPool, selectedActFunction, _input):
-        stride = prevBlockParams['Conv']['stride']
-        kernelCount = min(prevBlockParams['Conv']['kernelCount'] + 32, max(self._parameters['kernelCount']))
-        kernelSize = min(prevBlockParams['Conv']['kernelSize'], min(self._parameters['kernelSize']))
+    def expandConvBlock(self, convLayerCount, striveOrPool, selectedActFunction, _input):
+        stride = 1
+        kernelCount = random.choice(parameters['conv']['kernelCount'])
+        kernelSize = random.choice(parameters['conv']['kernelSize'])
         
         poolKernelSize = random.choice(parameters['pool']['kernelSize'])
-        poolDropoutRate = max(parameters['pool']['dropoutRate'])
+        poolDropoutRate = random.choice(parameters['pool']['dropoutRate'])
 
         # Repair Pooling or Strive Layer Parameters
         outputSize = self.calculateOutputSize(int(_input.shape[1]), poolKernelSize, 2)
@@ -125,7 +112,7 @@ class ConvolutionLayer:
             poolKernelSize, _ = self.repairLayer(copy.deepcopy(parameters['pool']), poolKernelSize, 2, int(_input.shape[1]))
 
         blockParams = {"#Conv": convLayerCount, "#Pool":0, "#Strive": 0, "Pool":{}, "Strive":{},
-                       "Conv":{'kernelSize':kernelSize, 'kernelCount':kernelCount, 'stride':stride, 'padding':'same','activation':selectedActFunction}}
+                       "Conv":{'kernelSize':kernelSize, 'kernelCount':kernelCount, 'stride':1, 'padding':'same','activation':selectedActFunction}}
 
         # Add Conv. Layers in New Conv. Block
         for i in range(blockParams['#Conv']):
@@ -144,41 +131,6 @@ class ConvolutionLayer:
             blockParams['#Strive'] = 1
 
         return blockParams, output
-        
-    def controlParameters(self, prevBlockParams, newBlockParams, blockNo, convHyperParams, selectedActFunc):
-
-        minKernelCount = min(convHyperParams['kernelCount'])       
-        maxKernelCount = max(convHyperParams['kernelCount'])
-        selectedKernelCount = newBlockParams['kernelCount']
-
-        minKernelSize = min(convHyperParams['kernelSize'])
-        maxKernelSize = max(convHyperParams['kernelSize'])
-        selectedKernelSize = newBlockParams['kernelSize']
-
-        diffKernelSize = (maxKernelSize - convHyperParams['kernelSize'][-2]) # Amount of Increase in kernelSize Hyper-param
-
-        if blockNo == 1:
-            if selectedKernelCount == (minKernelCount + 32):
-                selectedKernelCount = random.choice([selectedKernelCount, minKernelCount])
-            
-            newBlockParams['kernelCount'] = min(minKernelCount + 32, selectedKernelCount)
-            newBlockParams['kernelSize'] = random.choice([(maxKernelSize - diffKernelSize), maxKernelSize])
-        else:
-            prevBlockParams = prevBlockParams['Conv']
-            if selectedKernelCount <= prevBlockParams['kernelCount']:
-                newBlockParams['kernelCount'] = min(prevBlockParams['kernelCount'] + 32, maxKernelCount)
-            if (selectedKernelCount - 32) > prevBlockParams['kernelCount']:
-                # Increase Variety
-                newBlockParams['kernelCount'] = random.choice([selectedKernelCount - 32, selectedKernelCount])
-            if (selectedKernelSize + diffKernelSize < prevBlockParams['kernelSize']):
-                newBlockParams['kernelSize'] = random.choice([selectedKernelSize, selectedKernelSize + diffKernelSize]) 
-            """
-            Kernel Size aynı kalırsa 
-            if selectedKernelSize == prevBlockParams['kernelSize']:
-                newBlockParams['kernelSize'] = max(selectedKernelSize - diffKernelSize, minKernelSize)
-            """
-        newBlockParams['activation'] = selectedActFunc
-        return newBlockParams
     
     def repairLayer(self, parameters, selectedKernelSize, selectedStride, inputSize):
 

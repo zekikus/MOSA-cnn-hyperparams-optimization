@@ -2,11 +2,8 @@ import random
 import math
 import copy
 import numpy as np
-
-from Hyperparameters import parameters
-np.random.seed(parameters['seedNumber'])
-
 from keras.layers import MaxPooling2D, AveragePooling2D, Dropout
+from Hyperparameters import parameters
 
 # Constant seed number 
 random.seed(parameters['seedNumber'])
@@ -34,8 +31,6 @@ class PoolingLayer:
 
         # Select Hyper-parameter value round up or down
         valueRound = random.choice(['up', 'down'])
-        if rndParameterName == 'dropoutRate':
-            valueRound = 'up'
 
         if valueRound == 'up':
             newParams[rndParameterName] = tempParams[np.where(tempParams > oldParamValue)][0] if len(tempParams[np.where(tempParams > oldParamValue)]) != 0 else tempParams[np.where(tempParams < oldParamValue)][-1]
@@ -67,16 +62,11 @@ class PoolingLayer:
         output = Dropout(rate=dropoutRate)(_input)
         return output
 
-    def addRandomPoolingLayer(self, initParams, prevBlock, blockNo, _input):
-        dropoutRate = 0.2
-        if blockNo != 1:
-            prevBlock = prevBlock['Pool']
-            oldVal = prevBlock['dropoutRate']
-            params = np.array(self._parameters['dropoutRate']) 
-            dropoutRate = params[np.where(params > oldVal)][0] if len(params[np.where(params > oldVal)]) != 0 else oldVal
-        
-        # Repair Pooling Layer Parameters
+    def addRandomPoolingLayer(self, initParams, blockNo, _input):
+        dropoutRate = random.choice(parameters['pool']['dropoutRate'])
         kernelSize = random.choice(self._parameters['kernelSize'])
+
+        # Repair Pooling Layer Parameters
         outputSize = self.calculateOutputSize(int(_input.shape[1]), kernelSize, 2)
         if outputSize < 1:
             kernelSize, _ = self.repairPoolingLayer(copy.deepcopy(self._parameters), kernelSize, 2, int(_input.shape[1]))

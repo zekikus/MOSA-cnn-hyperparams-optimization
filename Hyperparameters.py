@@ -12,6 +12,6 @@ parameters = {
     "learningProcess": {"activation": ['relu', 'leaky_relu', 'elu'], #tf.keras.layers.LeakyReLU()],# tf.keras.layers.PReLU()
                         "learningRate": [0.0001, 0.001, 0.01],
                         "batchSize": [64, 128, 256]},
-    "seedNumber": 10,
+    "seedNumber": 20,
     "ratioInit": 0.9
 }
