@@ -1,7 +1,7 @@
 # Multi-objective Simulated Annealing for Hyper-parameter Optimization in Convolutional Neural Networks
 Multi-objective Simulated Annealing for Hyper-parameter Optimization in Convolutional Neural Networks
 
-Ayla Gülcü ([@aylagulcu]): https://github.com/aylagulcu, Zeki Kuş
+Ayla Gülcü ([@aylagulcu]), Zeki Kuş
 Dept. of Computer Science, Fatih Sultan Mehmet University, Istanbul, Turkey
 
 This repository containts code for the paper: [Multi-objective simulated annealing for hyper-parameter optimization in convolutional neural networks](https://peerj.com/articles/cs-338/)
@@ -20,4 +20,6 @@ In this study, we model a CNN hyper-parameter optimization problem as a bi-crite
 
 ![](https://github.com/zekikus/MOSA-cnn-hyperparams-optimization/blob/master/images/results_table.png)
 
-#### Table: Comparison of MOSA architectures to other search generated architectures.
+#### Table: Comparison of MOSA architectures to other search generated architectures.,
+
+[@aylagulcu]: https://github.com/aylagulcu
